@@ -197,7 +197,7 @@ python -m pytest petcare/tests -m integration -q   # 期望 11 passed
 
 ## 20. 作者与联系方式
 
-- 作者：Yuxi Wen
+- 作者：Yuxi Wen（[GitHub](https://github.com/Yuxi Wen) · 17666534357wyx@gmail.com）
 - 项目定位：AI Application Engineer / FDE 求职展示项目
 - 欢迎 Issues / PR 交流
 
