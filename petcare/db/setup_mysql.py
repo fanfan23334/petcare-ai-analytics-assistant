@@ -2,7 +2,7 @@
 
 Usage:
     python setup_mysql.py
-    python setup_mysql.py --password yourpass
+    python setup_mysql.py --password YOUR_MYSQL_PASSWORD
     python setup_mysql.py --host 127.0.0.1 --user root --password YOUR_MYSQL_PASSWORD
 
 Config from environment variables (used by later stages / .env):

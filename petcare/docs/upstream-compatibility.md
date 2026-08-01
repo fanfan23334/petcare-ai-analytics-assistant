@@ -11,7 +11,7 @@
 | 固定版本 | **2.0.2** |
 | 上游 commit | `365d061`（Bump version from 2.0.1 to 2.0.2） |
 | 上游 tag | `v2.0.2` |
-| 安装方式 | `pip install -e "[repo-root][servers,mysql,openai]"`（editable） |
+| 安装方式 | `pip install -e ".[servers,mysql,openai]"`（editable，在仓库根目录执行） |
 | PetCare 发布节点 | tag `petcare-v0.1-deepseek`（基于本 fork 的 `aee8c69`） |
 
 ⚠️ 注意：`src/vanna/__init__.py` 的 `__version__ = "0.1.0"` 与 `pyproject.toml` 的
