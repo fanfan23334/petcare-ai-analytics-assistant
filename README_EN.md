@@ -10,35 +10,37 @@ This project is a secondary development based on [vanna-ai/vanna](https://github
 
 ## Overview
 
-Operations staff ask natural-language questions (e.g. "Which doctor earned the most in the last three months?"). The system generates read-only SQL via an LLM, queries the MySQL business database, and returns streaming tables plus Chinese summaries. Aimed at pet hospital managers and operations staff for revenue analysis, doctor workload, pet-type statistics, appointment analysis, and customer spend analysis.
+Operations staff ask natural-language questions (e.g. "Which doctor earned the most in the last three months?"). The system generates read-only SQL via an LLM, queries the MySQL business database, and returns streaming tables plus Chinese summaries.
+
+<p align="center">
+  <img src="docs/assets/petcare-hero.png" alt="PetCare Web UI" width="85%">
+  <img src="docs/assets/petcare-query-result.png" alt="PetCare query result" width="85%">
+</p>
 
 ## Architecture
 
 ```mermaid
-flowchart TB
-    subgraph Client
-        UI["Web UI &lt;vanna-chat&gt; (SSE)"]
-    end
-    subgraph Server["FastAPI (petcare/main.py)"]
-        Route["POST /api/vanna/v2/chat_sse"]
-    end
-    subgraph Agent["Vanna Agent (core)"]
-        Prompt["PetCareSystemPromptBuilder"]
-        LLM["DeepSeekLlmService / PetCareMockLlmService"]
-        Tools["ToolRegistry → SafeRunSqlTool"]
-    end
-    subgraph Data["MySQL 8.0"]
-        DB[("petcare_db (petcare_reader read-only)")]
-    end
-    UI -->|SSE stream| Route
-    Route --> Agent
-    Prompt --> LLM
-    LLM -->|Tool Call| Tools
-    Tools -->|read-only SQL| DB
-    DB -->|DataFrame| Tools
-    Tools -->|result| LLM
-    LLM -->|Chinese summary| Route
-    Route -->|table + summary| UI
+flowchart LR
+    User[Business User]
+    UI[Web UI]
+    API[FastAPI + SSE]
+    Agent[Vanna Agent]
+    Prompt[PetCare Domain Prompt]
+    LLM[Mock / DeepSeek]
+    Safety[SafeRunSqlTool]
+    DB[(MySQL petcare_db)]
+
+    User --> UI
+    UI --> API
+    API --> Agent
+    Agent --> Prompt
+    Agent --> LLM
+    LLM --> Safety
+    Safety --> DB
+    DB --> Safety
+    Safety --> LLM
+    LLM --> API
+    API --> UI
 ```
 
 ## Key Features
@@ -49,6 +51,16 @@ flowchart TB
 - **Business time semantics**: "this month / last month / recent 3 months" all relative to `PETCARE_AS_OF_DATE`
 - **Mock / DeepSeek dual mode**: zero-cost deterministic testing + real model mode
 - **90 automated tests**: 79 default + 11 real DeepSeek integration
+
+## Example Questions (answers from current petcare_db data)
+
+| Question | Answer |
+|---|---|
+| Which doctor earned the most in the last three months? | 张伟 (Dermatology), ¥16,922.04 |
+| What is this month's paid bill revenue? | ¥32,218.22 |
+| Which pet species has the most appointments? | dog — 137 appointments |
+| Which customers own multiple pets? | 12 customers |
+| Do multi-pet customers spend more than single-pet ones? | Yes — multi-pet avg ¥11,700.90 vs single-pet avg ¥1,989.13 |
 
 ## CTE Compatibility Fix
 
