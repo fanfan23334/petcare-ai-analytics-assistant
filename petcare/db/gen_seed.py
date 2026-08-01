@@ -3,17 +3,54 @@
 Produces seed.sql with realistic pet-hospital business data:
 - 8 doctors (fixed roster, stable for interviews)
 - 30 owners, 50 pets (species spread: cat/dog/bird/rabbit/hamster/reptile)
-- ~420 appointments across 12 months (recent 3 months denser)
-- ~300 medical records
-- 500+ bills (income analysis core)
+- ~340 appointments across 9 months (recent 3 months denser)
+- ~250 medical records
+- 500 bills (income analysis core)
+
+Time consistency: everything is derived from BASE_DATE (default 2026-08-01):
+- DATA_START    = BASE_DATE - 12 months          (2025-08-01)
+- DATA_END      = BASE_DATE - 3 months - 1 day   (2026-04-30)
+- RECENT_START  = BASE_DATE - 6 months           (2026-02-01, "recent 3 months")
+- pets.birth_date <= DATA_END, created_at >= birth_date, created_at <= DATA_END
 
 Deterministic: random.seed(42) -> same output on every run.
+Override BASE_DATE with env var PETCARE_BASE_DATE (YYYY-MM-DD).
 """
 
+import os
 import random
 from datetime import date, timedelta
 
 random.seed(42)
+
+BASE_DATE_STR = os.getenv("PETCARE_BASE_DATE", "2026-08-01")
+
+
+def _parse_base_date(raw: str) -> date:
+    try:
+        return date.fromisoformat(raw)
+    except ValueError as exc:
+        raise SystemExit(f"invalid PETCARE_BASE_DATE '{raw}': expected YYYY-MM-DD") from exc
+
+
+def add_months(d: date, months: int) -> date:
+    """Add months with day clamping (e.g. 2026-05-31 -1M -> 2026-04-30)."""
+    month_index = d.year * 12 + (d.month - 1) + months
+    year, month_zero = divmod(month_index, 12)
+    month = month_zero + 1
+    if month == 2:
+        last = 29 if (year % 4 == 0 and (year % 100 != 0 or year % 400 == 0)) else 28
+    elif month in (4, 6, 9, 11):
+        last = 30
+    else:
+        last = 31
+    return date(year, month, min(d.day, last))
+
+
+BASE_DATE = _parse_base_date(BASE_DATE_STR)
+DATA_START = add_months(BASE_DATE, -12)        # 2025-08-01
+DATA_END = add_months(BASE_DATE, -3) - timedelta(days=1)   # 2026-04-30
+RECENT_START = add_months(BASE_DATE, -6)       # 2026-02-01
 
 # ---------------------------------------------------------------- doctors
 DOCTORS = [
@@ -82,19 +119,23 @@ def gen_pets(owners, count=50):
     for i in range(count):
         species = species_pool[i]
         lo, hi = SPECIES_WEIGHT[species]
-        birth_year = random.randint(2021, 2026)
-        birth_month = random.randint(1, 12)
-        birth_day = random.randint(1, 28)
+        # birth_date uniformly in [2021-01-01, DATA_END]; never later than BASE_DATE
+        earliest = date(2021, 1, 1)
+        birth_date = earliest + timedelta(days=random.randint(0, (DATA_END - earliest).days))
+        # created_at between birth_date and DATA_END (archive created after birth)
+        created_at = birth_date + timedelta(days=random.randint(1, 120))
+        if created_at > DATA_END:
+            created_at = DATA_END
         pets.append({
             "owner_id": random.randint(1, len(owners)),
             "name": random.choice(["豆豆", "咪咪", "旺财", "团子", "布丁", "雪球", "可乐", "糯米", "奶茶", "元宝", "多多", "皮皮", "汤圆", "年糕", "胖虎", "花卷", "Lucky", "Momo", "Money", "小七"]),
             "species": species,
             "breed": random.choice(SPECIES_BREEDS[species]),
             "gender": "male" if random.random() < 0.5 else "female",
-            "birth_date": date(birth_year, birth_month, birth_day),
+            "birth_date": birth_date,
             "weight": round(random.uniform(lo, hi), 2),
             "neutered": 1 if random.random() < 0.6 else 0,
-            "created_at": date(2025, random.randint(1, 8), random.randint(1, 28)),
+            "created_at": created_at,
         })
     return pets
 
@@ -107,10 +148,11 @@ REASONS = [
 ]
 
 
-def gen_appointments(pets, doctors, start=date(2025, 8, 1), end=date(2026, 4, 30)):
-    total_days = (end - start).days
-    # recent 3 months (2026-02-01 ~ 2026-04-30) get ~35% density
-    recent_start = date(2026, 2, 1)
+def gen_appointments(pets, doctors, start=None, end=None):
+    start = start or DATA_START
+    end = end or DATA_END
+    # recent 3 months (RECENT_START ~ DATA_END) get ~35% density
+    recent_start = RECENT_START
     aps = []
     cursor = start
     while cursor <= end:
@@ -127,7 +169,8 @@ def gen_appointments(pets, doctors, start=date(2025, 8, 1), end=date(2026, 4, 30
     return aps
 
 
-def _one_appointment(day, pets, doctors, force_status=None, data_end=date(2026, 4, 30)):
+def _one_appointment(day, pets, doctors, force_status=None, data_end=None):
+    data_end = data_end or DATA_END
     status = force_status or random.choice(STATUS_POOL)
     if status == "booked" and day < data_end:
         status = random.choice(["completed", "completed", "cancelled"])  # no historical bookings
@@ -194,8 +237,8 @@ def gen_medical_records(appointments, doctors, target=300):
             "notes": random.choice(["两周后复诊", "注意饮食清淡", "按时用药,不适随诊", "避免剧烈运动", "多饮水观察", None, None, None]),
         })
 
-    # standalone emergency records without appointment
-    emergency_days = [date(2026, 3, 15), date(2026, 3, 28), date(2026, 4, 6), date(2026, 4, 18), date(2026, 4, 26)]
+    # standalone emergency records without appointment (recent weeks before DATA_END)
+    emergency_days = [DATA_END - timedelta(days=d) for d in (45, 32, 25, 12, 5)]
     while len(records) < target and emergency_days:
         day = emergency_days.pop()
         doctor = random.choice(doctors)
@@ -259,11 +302,11 @@ def gen_bills(records, appointments, pets, target=500):
         extras = random.choices(["examination", "medicine", "surgery", "hospitalization", "medicine", "examination"], k=random.randint(1, 3))
         items.extend(extras[:random.randint(1, 2)])
         bill_date = record["record_date"] + timedelta(days=random.choice([0, 0, 1, 2]))
-        if bill_date > date(2026, 4, 30):
-            bill_date = date(2026, 4, 30)  # clamp to data end
+        if bill_date > DATA_END:
+            bill_date = DATA_END  # clamp to data end
         for it in items:
             pay_status = random.choice(PAY_STATUS_POOL)
-            if pay_status == "unpaid" and bill_date < date(2026, 3, 1):
+            if pay_status == "unpaid" and bill_date < RECENT_START:
                 pay_status = "paid"  # unpaid only makes sense recently
             bills.append({
                 "pet_id": record["pet_id"],
@@ -278,12 +321,13 @@ def gen_bills(records, appointments, pets, target=500):
             })
 
     # standalone bills: vaccines & grooming for some pets (no record link)
+    window = (DATA_END - RECENT_START).days
     pet_ids = list(range(1, len(pets) + 1))
     random.shuffle(pet_ids)
     for i, pet_id in enumerate(pet_ids[:28]):
         if i % 2 == 0:  # vaccination course
             for v in range(random.randint(1, 2)):
-                d = date(2026, random.randint(1, 4), random.randint(1, 28))
+                d = RECENT_START + timedelta(days=random.randint(0, window))
                 bills.append({
                     "pet_id": pet_id,
                     "doctor_id": random.randint(1, 8),
@@ -296,7 +340,7 @@ def gen_bills(records, appointments, pets, target=500):
                     "payment_method": random.choice(PAY_METHOD_POOL),
                 })
         else:  # grooming
-            d = date(2026, random.randint(1, 4), random.randint(1, 28))
+            d = RECENT_START + timedelta(days=random.randint(0, window))
             bills.append({
                 "pet_id": pet_id,
                 "doctor_id": random.randint(1, 8),
@@ -396,8 +440,9 @@ def main():
     print("appointment status:", dict(Counter(a["status"] for a in appointments)))
     print("bill pay_status:", dict(Counter(b["pay_status"] for b in bills)))
     print("bill item_type:", dict(Counter(b["item_type"] for b in bills)))
-    recent = [b for b in bills if b["billed_date"] >= date(2026, 2, 1)]
-    print(f"bills in recent 3 months (2026-02~04): {len(recent)}")
+    recent = [b for b in bills if b["billed_date"] >= RECENT_START]
+    print(f"bills in recent 3 months ({RECENT_START}~{DATA_END}): {len(recent)}")
+    print(f"window: {DATA_START} ~ {DATA_END} (BASE_DATE={BASE_DATE})")
 
 
 if __name__ == "__main__":
