@@ -9,7 +9,7 @@
 |---|---|
 | 包名 | `vanna`（Vanna Agents，2.x 重构线） |
 | 固定版本 | **2.0.2** |
-| 上游 commit | `365d061`（Bump version from 2.0.1 to 2.0.2） |
+| 上游基线 | tag `v2.0.2`（原始 commit `365d061`；2026-08 历史清理后为 `2c97c0f`，内容 tree 完全等同） |
 | 上游 tag | `v2.0.2` |
 | 安装方式 | `pip install -e ".[servers,mysql,openai]"`（editable，在仓库根目录执行） |
 | PetCare 发布节点 | tag `petcare-v0.1-deepseek`（基于本 fork 的 `aee8c69`） |
