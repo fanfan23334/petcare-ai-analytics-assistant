@@ -31,6 +31,22 @@ REJECTED = [
     ("multi statement", "SELECT 1; DELETE FROM bills"),
     ("not select start", "EXPLAIN SELECT * FROM owners"),
     ("empty", "   "),
+    ("into outfile", "SELECT * FROM bills INTO OUTFILE '/tmp/x.csv'"),
+    ("into dumpfile", "SELECT * FROM bills INTO DUMPFILE '/tmp/x.bin'"),
+    ("load_file", "SELECT LOAD_FILE('/etc/passwd')"),
+    ("sleep", "SELECT SLEEP(10)"),
+    ("benchmark", "SELECT BENCHMARK(1000000, MD5('x'))"),
+    ("for update", "SELECT * FROM bills FOR UPDATE"),
+    ("lock in share mode", "SELECT * FROM bills LOCK IN SHARE MODE"),
+    ("information_schema", "SELECT * FROM information_schema.tables"),
+    ("performance_schema", "SELECT * FROM performance_schema.events"),
+    ("mysql system db", "SELECT * FROM mysql.user"),
+    ("sys system db", "SELECT * FROM sys.schema_tables"),
+    ("comment dash", "SELECT 1 -- comment"),
+    ("comment hash", "SELECT 1 # comment"),
+    ("comment block", "SELECT 1 /* comment */"),
+    ("too long", "SELECT " + "1, " * 2500),
+    ("substring delete trick", "SELECT * FROM owners WHERE name LIKE 'x' AND (SELECT 1) IS NOT NULL; DELETE FROM bills"),
 ]
 
 

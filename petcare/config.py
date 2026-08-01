@@ -17,8 +17,9 @@ from pathlib import Path
 DOTENV_PATH = Path(__file__).resolve().parent / ".env"
 
 
-def load_dotenv(path: Path = DOTENV_PATH) -> None:
+def load_dotenv(path: Path | None = None) -> None:
     """Load KEY=VALUE lines from .env without overriding existing env vars."""
+    path = path or DOTENV_PATH
     if not path.exists():
         return
     for line in path.read_text(encoding="utf-8").splitlines():

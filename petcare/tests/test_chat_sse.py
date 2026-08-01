@@ -15,9 +15,22 @@ from petcare.main import PAGE_TITLE, create_app
 
 @pytest.fixture(scope="module")
 def client():
-    app = create_app()
-    with TestClient(app) as c:
-        yield c
+    # mock e2e must run with the deterministic mock LLM regardless of .env
+    import os
+
+    saved = {k: os.environ.get(k) for k in ("LLM_PROVIDER", "LLM_API_KEY")}
+    os.environ["LLM_PROVIDER"] = "mock"
+    os.environ["LLM_API_KEY"] = ""
+    try:
+        app = create_app()
+        with TestClient(app) as c:
+            yield c
+    finally:
+        for k, v in saved.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
 
 
 def _sse_events(resp):
