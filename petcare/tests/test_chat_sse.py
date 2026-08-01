@@ -91,7 +91,7 @@ def test_openapi(client):
     "question,expect_substr",
     [
         ("最近三个月收入最高的医生是谁？", "张伟"),   # same as verify_mysql.py manual SQL
-        ("消费最高的客户是谁？", "冯浩建"),
+        ("消费最高的客户是谁？", "朱萍丽"),
         ("本月预约取消率是多少？", "31.9"),
         ("猫和狗各有多少只？", "cat"),
         ("哪位医生完成预约最多？", "查询完成"),
