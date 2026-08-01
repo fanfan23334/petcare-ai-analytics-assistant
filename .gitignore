@@ -12,6 +12,11 @@ docs/*.html
 notebooks/chroma.sqlite3
 dist
 .env
+.env.*
+!.env.example
+*.log
+# RunSqlTool file system output
+query_results_*.csv
 *.sqlite
 htmlcov
 chroma.sqlite3

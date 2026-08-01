@@ -83,8 +83,8 @@ class Agent:
         self,
         llm_service: LlmService,
         tool_registry: ToolRegistry,
-        user_resolver: UserResolver,
-        agent_memory: AgentMemory,
+        user_resolver: Optional[UserResolver] = None,
+        agent_memory: Optional[AgentMemory] = None,
         conversation_store: Optional[ConversationStore] = None,
         config: AgentConfig = AgentConfig(),
         system_prompt_builder: SystemPromptBuilder = DefaultSystemPromptBuilder(),
@@ -98,6 +98,14 @@ class Agent:
         observability_provider: Optional[ObservabilityProvider] = None,
         audit_logger: Optional[AuditLogger] = None,
     ):
+        if user_resolver is None:
+            from vanna.integrations.local.memory import AnonymousUserResolver
+
+            user_resolver = AnonymousUserResolver()
+        if agent_memory is None:
+            from vanna.integrations.local.memory import InMemoryAgentMemory
+
+            agent_memory = InMemoryAgentMemory()
         self.llm_service = llm_service
         self.tool_registry = tool_registry
         self.user_resolver = user_resolver

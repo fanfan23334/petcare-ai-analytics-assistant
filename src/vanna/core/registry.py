@@ -60,6 +60,14 @@ class ToolRegistry:
 
             self.audit_config = AuditConfig()
 
+    def register(self, tool: Tool[Any], access_groups: Optional[List[str]] = None) -> None:
+        """Register a tool (alias for :meth:`register_local_tool`).
+
+        The README and example modules use ``register()``; older
+        implementations exposed only ``register_local_tool``.
+        """
+        self.register_local_tool(tool, access_groups or [])
+
     def register_local_tool(self, tool: Tool[Any], access_groups: List[str]) -> None:
         """Register a local tool with optional access group restrictions.
 
