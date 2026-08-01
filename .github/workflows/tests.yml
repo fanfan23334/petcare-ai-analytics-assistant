@@ -1,35 +1,60 @@
-name: Basic Integration Tests
+name: PetCare Tests
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
+  pull_request:
+    branches: [main]
 
 permissions:
   contents: read
 
 jobs:
-  build:
+  petcare-tests:
     runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: petcare_db
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
     steps:
-    - uses: actions/checkout@v4
-    - name: Set up Python 3.11
-      uses: actions/setup-python@v5
-      with:
-        python-version: "3.11"
-    - name: Install pip
-      run: |
-        python -m pip install --upgrade pip
-        pip install tox
-    - name: Run tests
-      env:
-        PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION: python
-        VANNA_API_KEY: ${{ secrets.VANNA_API_KEY }}
-        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
-        ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
-        SNOWFLAKE_USERNAME: ${{ secrets.SNOWFLAKE_USERNAME }}
-        SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
-      run: tox
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install PetCare dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[servers,mysql,openai,dev]"
+
+      - name: Initialize petcare_db
+        env:
+          MYSQL_HOST: 127.0.0.1
+          MYSQL_PORT: "3306"
+          MYSQL_USER: root
+          MYSQL_PASSWORD: root
+          MYSQL_DATABASE: petcare_db
+        run: python petcare/db/setup_mysql.py
+
+      - name: Run PetCare tests (no external API)
+        env:
+          MYSQL_HOST: 127.0.0.1
+          MYSQL_PORT: "3306"
+          MYSQL_USER: root
+          MYSQL_PASSWORD: root
+          MYSQL_DATABASE: petcare_db
+          PYTHONIOENCODING: utf-8
+        run: python -m pytest petcare/tests -m "not integration" -q
+
+      # Real DeepSeek integration tests (pytest -m integration) require
+      # LLM_API_KEY and are only run manually - never in CI.
