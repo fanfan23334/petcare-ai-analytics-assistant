@@ -113,7 +113,12 @@ def create_agent():
         llm_service=llm_service,
         tool_registry=registry,
         system_prompt_builder=prompt_builder,
-        config=AgentConfig(ui_features=ui_features),
+        config=AgentConfig(
+            ui_features=ui_features,
+            # protection boundary, NOT the fix: CTE data passing is fixed in
+            # SafeRunSqlTool; cap iterations so pathological loops fail fast
+            max_tool_iterations=4,
+        ),
     )
 
 
