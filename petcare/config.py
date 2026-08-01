@@ -57,7 +57,7 @@ class PetCareConfig:
     llm_model: str
     llm_api_key: str
     llm_base_url: str
-    base_date: date
+    as_of_date: date
 
 
 def load_config() -> PetCareConfig:
@@ -70,12 +70,12 @@ def load_config() -> PetCareConfig:
     except ValueError as exc:
         raise ValueError(f"invalid MYSQL_PORT: {os.getenv('MYSQL_PORT')}") from exc
 
-    base_date_raw = _optional("PETCARE_BASE_DATE", "2026-08-01")
+    as_of_date_raw = _optional("PETCARE_AS_OF_DATE", "2026-04-30")
     try:
-        base_date = date.fromisoformat(base_date_raw)
+        as_of_date = date.fromisoformat(as_of_date_raw)
     except ValueError as exc:
         raise ValueError(
-            f"invalid PETCARE_BASE_DATE '{base_date_raw}': expected YYYY-MM-DD"
+            f"invalid PETCARE_AS_OF_DATE '{as_of_date_raw}': expected YYYY-MM-DD"
         ) from exc
 
     llm_provider = _optional("LLM_PROVIDER", "mock").lower()
@@ -98,5 +98,5 @@ def load_config() -> PetCareConfig:
         llm_model=llm_model,
         llm_api_key=llm_api_key,
         llm_base_url=llm_base_url,
-        base_date=base_date,
+        as_of_date=as_of_date,
     )

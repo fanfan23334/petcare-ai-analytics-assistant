@@ -36,22 +36,28 @@ def add_months(d: date, months: int) -> date:
     return date(year, month, min(d.day, last))
 
 
-def build_cases(base_date: date) -> List[Tuple[str, str]]:
-    """(case_name, sql) — all time windows derived from BASE_DATE."""
-    recent_start = add_months(base_date, -6).isoformat()      # 2026-02-01
-    recent_end = (add_months(base_date, -3) - timedelta(days=1)).isoformat()  # 2026-04-30
-    month_start = add_months(base_date, -4).isoformat()       # 2026-04-01
-    month_end = (add_months(base_date, -3) - timedelta(days=1)).isoformat()
+def build_cases(as_of_date: date) -> List[Tuple[str, str]]:
+    """(case_name, sql) — all time windows derived from AS_OF_DATE.
+
+    - this month      : [AS_OF month start, AS_OF_DATE]
+    - last month      : [prev month start, prev month end]
+    - recent 3 months : [AS_OF month start - 2 months, AS_OF_DATE]
+    """
+    month_start = as_of_date.replace(day=1)                # 2026-04-01
+    last_month_start = add_months(month_start, -1)         # 2026-03-01
+    last_month_end = month_start - timedelta(days=1)       # 2026-03-31
+    recent_start = add_months(month_start, -2)             # 2026-02-01
+    as_of = as_of_date.isoformat()
 
     return [
         ("owners 总数", "SELECT COUNT(*) AS cnt FROM owners"),
         ("bills 总数", "SELECT COUNT(*) AS cnt FROM bills"),
         (
-            f"最近三个月({recent_start}~{recent_end})收入最高医生",
+            f"最近三个月({recent_start}~{as_of})收入最高医生",
             f"""SELECT d.name AS doctor, d.specialty, ROUND(SUM(b.amount), 2) AS revenue
                 FROM bills b JOIN doctors d ON b.doctor_id = d.doctor_id
                 WHERE b.pay_status = 'paid'
-                  AND b.billed_date BETWEEN '{recent_start}' AND '{recent_end}'
+                  AND b.billed_date BETWEEN '{recent_start}' AND '{as_of}'
                 GROUP BY d.doctor_id
                 ORDER BY revenue DESC
                 LIMIT 1""",
@@ -68,12 +74,18 @@ def build_cases(base_date: date) -> List[Tuple[str, str]]:
                 LIMIT 1""",
         ),
         (
-            f"本月({month_start}~{month_end})预约取消率",
+            f"本月({month_start}~{as_of})预约取消率",
             f"""SELECT COUNT(*) AS total,
                         SUM(status = 'cancelled') AS cancelled,
                         ROUND(100 * SUM(status = 'cancelled') / COUNT(*), 1) AS cancel_rate
                 FROM appointments
-                WHERE appointment_date BETWEEN '{month_start}' AND '{month_end}'""",
+                WHERE appointment_date BETWEEN '{month_start}' AND '{as_of}'""",
+        ),
+        (
+            f"上月({last_month_start}~{last_month_end})预约量",
+            f"""SELECT COUNT(*) AS total
+                FROM appointments
+                WHERE appointment_date BETWEEN '{last_month_start}' AND '{last_month_end}'""",
         ),
     ]
 
@@ -110,7 +122,7 @@ async def main() -> int:
     print(f"  MYSQL_USER={config.mysql_user}  MYSQL_DATABASE={config.mysql_database}")
     print(f"  MYSQL_PASSWORD={'*' * len(config.mysql_password)}")
     print(f"  LLM_PROVIDER={config.llm_provider}  LLM_MODEL={config.llm_model or '-'}")
-    print(f"  PETCARE_BASE_DATE={config.base_date}")
+    print(f"  PETCARE_AS_OF_DATE={config.as_of_date}")
 
     # Vanna chain: RunSqlTool -> MySQLRunner
     runner = MySQLRunner(
@@ -139,7 +151,7 @@ async def main() -> int:
         print(f"== 数据库连接 ==")
         print(f"  ping SELECT 1: FAIL ({exc})")
 
-    cases = build_cases(config.base_date)
+    cases = build_cases(config.as_of_date)
     results = []
     print("== 业务验证 ==")
     for name, sql in cases:
@@ -162,7 +174,7 @@ async def main() -> int:
         "",
         f"- 日期：{date.today().isoformat()}",
         f"- 链路：`RunSqlTool -> MySQLRunner -> MySQL 8.0`（未直接使用 pymysql 执行业务查询）",
-        f"- BASE_DATE：`{config.base_date}`（数据窗口至 {add_months(config.base_date, -3) - timedelta(days=1)}）",
+        f"- AS_OF_DATE：`{config.as_of_date}`（业务分析基准日，数据窗口至该日）",
         "",
         "## 配置加载（密码已隐藏）",
         "",
@@ -174,7 +186,7 @@ async def main() -> int:
         f"| MYSQL_PASSWORD | `{'*' * len(config.mysql_password)}` |",
         f"| MYSQL_DATABASE | `{config.mysql_database}` |",
         f"| LLM_PROVIDER | `{config.llm_provider}` |",
-        f"| PETCARE_BASE_DATE | `{config.base_date}` |",
+        f"| PETCARE_AS_OF_DATE | `{config.as_of_date}` |",
         "",
         "## 数据库连接",
         "",

@@ -7,14 +7,15 @@ Produces seed.sql with realistic pet-hospital business data:
 - ~250 medical records
 - 500 bills (income analysis core)
 
-Time consistency: everything is derived from BASE_DATE (default 2026-08-01):
-- DATA_START    = BASE_DATE - 12 months          (2025-08-01)
-- DATA_END      = BASE_DATE - 3 months - 1 day   (2026-04-30)
-- RECENT_START  = BASE_DATE - 6 months           (2026-02-01, "recent 3 months")
+Time consistency: everything is derived from AS_OF_DATE (default 2026-04-30),
+the business analysis reference date (data ends on this day):
+- DATA_START    = fixed 2025-08-01 (9-month data window, keeps data scale stable)
+- DATA_END      = AS_OF_DATE                      (2026-04-30)
+- RECENT_START  = month start of AS_OF_DATE - 2 months (2026-02-01, "recent 3 months")
 - pets.birth_date <= DATA_END, created_at >= birth_date, created_at <= DATA_END
 
 Deterministic: random.seed(42) -> same output on every run.
-Override BASE_DATE with env var PETCARE_BASE_DATE (YYYY-MM-DD).
+Override AS_OF_DATE with env var PETCARE_AS_OF_DATE (YYYY-MM-DD).
 """
 
 import os
@@ -23,14 +24,14 @@ from datetime import date, timedelta
 
 random.seed(42)
 
-BASE_DATE_STR = os.getenv("PETCARE_BASE_DATE", "2026-08-01")
+AS_OF_DATE_STR = os.getenv("PETCARE_AS_OF_DATE", "2026-04-30")
 
 
-def _parse_base_date(raw: str) -> date:
+def _parse_as_of_date(raw: str) -> date:
     try:
         return date.fromisoformat(raw)
     except ValueError as exc:
-        raise SystemExit(f"invalid PETCARE_BASE_DATE '{raw}': expected YYYY-MM-DD") from exc
+        raise SystemExit(f"invalid PETCARE_AS_OF_DATE '{raw}': expected YYYY-MM-DD") from exc
 
 
 def add_months(d: date, months: int) -> date:
@@ -47,10 +48,11 @@ def add_months(d: date, months: int) -> date:
     return date(year, month, min(d.day, last))
 
 
-BASE_DATE = _parse_base_date(BASE_DATE_STR)
-DATA_START = add_months(BASE_DATE, -12)        # 2025-08-01
-DATA_END = add_months(BASE_DATE, -3) - timedelta(days=1)   # 2026-04-30
-RECENT_START = add_months(BASE_DATE, -6)       # 2026-02-01
+AS_OF_DATE = _parse_as_of_date(AS_OF_DATE_STR)
+DATA_START = date(2025, 8, 1)                 # fixed 9-month window (stable data scale)
+DATA_END = AS_OF_DATE                         # 2026-04-30
+MONTH_START = AS_OF_DATE.replace(day=1)       # 2026-04-01
+RECENT_START = add_months(MONTH_START, -2)    # 2026-02-01 (recent 3 full months incl. AS_OF month)
 
 # ---------------------------------------------------------------- doctors
 DOCTORS = [
@@ -119,7 +121,7 @@ def gen_pets(owners, count=50):
     for i in range(count):
         species = species_pool[i]
         lo, hi = SPECIES_WEIGHT[species]
-        # birth_date uniformly in [2021-01-01, DATA_END]; never later than BASE_DATE
+        # birth_date uniformly in [2021-01-01, DATA_END]; never later than AS_OF_DATE
         earliest = date(2021, 1, 1)
         birth_date = earliest + timedelta(days=random.randint(0, (DATA_END - earliest).days))
         # created_at between birth_date and DATA_END (archive created after birth)
@@ -442,7 +444,7 @@ def main():
     print("bill item_type:", dict(Counter(b["item_type"] for b in bills)))
     recent = [b for b in bills if b["billed_date"] >= RECENT_START]
     print(f"bills in recent 3 months ({RECENT_START}~{DATA_END}): {len(recent)}")
-    print(f"window: {DATA_START} ~ {DATA_END} (BASE_DATE={BASE_DATE})")
+    print(f"window: {DATA_START} ~ {DATA_END} (AS_OF_DATE={AS_OF_DATE})")
 
 
 if __name__ == "__main__":
